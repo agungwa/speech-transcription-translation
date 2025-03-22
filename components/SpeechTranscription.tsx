@@ -322,7 +322,7 @@ const SpeechTranscription = () => {
           </div>
 
           <div>
-            <h2 className="text-xl font-semibold text-white">Translated:</h2>
+            <h2 className="text-xl font-semibold text-white">Translated (AI):</h2>
             <p className="mt-2 p-4 bg-gray-700 rounded-lg text-gray-200">
               {isTranslating ? 'Translating...' : translatedTranscript}
             </p>
