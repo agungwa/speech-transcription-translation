@@ -34,53 +34,58 @@ const SpeechTranscription = () => {
   // Automatically set sourceLang based on the selected language
   const sourceLang = languageMap[language] || 'en';
 
+  // Detect if the user is on a mobile browser (only in the browser environment)
+  const isMobile =
+    typeof navigator !== 'undefined' &&
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
   const startListening = () => {
     // Stop any ongoing recognition
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
-  
+
     // Clear all text states
     setFullTranscript('');
     setLastSegment('');
     setCorrectedTranscript('');
     setTranslatedTranscript('');
-  
+
     // Clear any existing inactivity timeout
     if (inactivityTimeoutRef.current) {
       clearTimeout(inactivityTimeoutRef.current);
     }
-  
+
     // Initialize new recognition
     const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.lang = language;
-    recognition.interimResults = true;
+    recognition.interimResults = !isMobile; // Disable interim results on mobile
     recognition.maxAlternatives = 1;
-    recognition.continuous = true;
-  
+    recognition.continuous = !isMobile; // Disable continuous listening on mobile
+
     recognition.start();
-  
+
     recognition.onresult = async (event: SpeechRecognitionEvent) => {
       const results = event.results;
       const latestResult = results[results.length - 1];
       const latestTranscript = latestResult[0].transcript;
-  
-      if (latestResult.isFinal) {
-        // Use only the latest transcript without appending to the old one
-        const punctuatedTranscript = addPunctuation(latestTranscript); // Add punctuation
+
+      if (!recognition.interimResults || latestResult.isFinal) {
+        // Process the transcript only if interim results are not supported or it's the final result
+        const punctuatedTranscript = addPunctuation(latestTranscript);
         setFullTranscript(punctuatedTranscript);
         setLastSegment('');
-  
+
         // Correct the grammar of the updated transcript
         const correctedText = await correctGrammar(punctuatedTranscript, language, useAIGrammar);
         setCorrectedTranscript(correctedText);
-  
+
         // Automatically translate the corrected transcript
         setIsTranslating(true);
         try {
           const translatedText = await translateText(correctedText, sourceLang, targetLang);
           setTranslatedTranscript(translatedText);
-  
+
           // Automatically speak the translated text if auto-speak is enabled
           if (isAutoSpeak) {
             speakText(translatedText, targetLang);
@@ -94,7 +99,7 @@ const SpeechTranscription = () => {
       } else {
         setLastSegment(latestTranscript);
       }
-  
+
       // Reset the inactivity timeout
       if (inactivityTimeoutRef.current) {
         clearTimeout(inactivityTimeoutRef.current);
@@ -103,20 +108,24 @@ const SpeechTranscription = () => {
         stopListening();
       }, 2000); // Stop after 2 seconds of inactivity
     };
-  
+
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
     };
-  
+
     recognition.onspeechend = () => {
-      console.log('Speech ended, but still listening...');
+      console.log('Speech ended, processing final transcript...');
+      // Add a delay to ensure the final transcript is processed
+      setTimeout(() => {
+        stopListening();
+      }, 1000); // Delay of 1 second before stopping
     };
-  
+
     recognitionRef.current = recognition;
     setIsListening(true);
   };
-  
+
   const stopListening = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
