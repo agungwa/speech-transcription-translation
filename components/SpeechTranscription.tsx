@@ -71,22 +71,33 @@ const SpeechTranscription = () => {
       const latestTranscript = latestResult[0].transcript;
 
       if (!recognition.interimResults || latestResult.isFinal) {
-        // Process the transcript only if interim results are not supported or it's the final result
         const punctuatedTranscript = addPunctuation(latestTranscript);
         setFullTranscript(punctuatedTranscript);
         setLastSegment('');
 
-        // Correct the grammar of the updated transcript
         const correctedText = await correctGrammar(punctuatedTranscript, language, useAIGrammar);
         setCorrectedTranscript(correctedText);
 
-        // Automatically translate the corrected transcript
         setIsTranslating(true);
         try {
           const translatedText = await translateText(correctedText, sourceLang, targetLang);
           setTranslatedTranscript(translatedText);
 
-          // Automatically speak the translated text if auto-speak is enabled
+          // Save log
+          await fetch('/api/logger', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              language,
+              targetLang,
+              punctuatedTranscript,
+              correctedText,
+              translatedText
+            }),
+          })
+
           if (isAutoSpeak) {
             speakText(translatedText, targetLang);
           }
@@ -108,7 +119,6 @@ const SpeechTranscription = () => {
         stopListening();
       }, 2000); // Stop after 2 seconds of inactivity
     };
-
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
